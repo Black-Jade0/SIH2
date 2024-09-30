@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import { BrowserRouter as Router } from "react-router-dom";
 import HomePage from "./home/HomePage";
-import AssessmentCreation from "./dashboard/AssessmentCreation";
+import AssessmentCreation from "./Dashboard/AssessmentCreation"
 import PerformanceReports from "./performanceReports/PerformanceReports";
 import AccessibilityOptions from "./accessibility/AccessibilityOptions";
 import Dashboard from "./Dashboardd/Dashboard";
