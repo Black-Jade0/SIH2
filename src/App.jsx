@@ -7,7 +7,6 @@ import PerformanceReports from "./performanceReports/PerformanceReports";
 import AccessibilityOptions from "./accessibility/AccessibilityOptions";
 import Dashboard from "./Dashboardd/Dashboard";
 import Support from "./support/Support";
-import Include from "./WHY/include";
 import ResultsAndAnalytics from "./Result/ResultsAndAnalytics";
 
 const App = () => {
