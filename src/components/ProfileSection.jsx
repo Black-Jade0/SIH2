@@ -9,7 +9,7 @@ const ProfileSection = () => {
         alt="Profile" 
         className="rounded-full w-20 h-20 shadow-lg hover:scale-105 transition-transform duration-300 ease-out"
       />
-      <h2 className="text-white mt-4 text-lg">Taniksha</h2>
+      <h2 className="text-white mt-4 text-lg">FutureFramework</h2>
       <button className="text-sm text-gray-400 hover:text-gray-100 mt-2">
         View Profile
       </button>
