@@ -1,19 +1,25 @@
 const express = require("express");
 const cors = require("cors");
-require('dotenv').config();
+var cookieParser = require('cookie-parser')
+
+//require('dotenv').config();
 const PORT =  process.env.PORT || 3000;
 const app = express();
-app.use(cors());
+app.use(cookieParser());
 app.use(express.json());
+app.use(cors({
+    credentials: true,
+    origin: "http://localhost:5173"
+}));
 
 // Import routers
-const userRouter = require("./src/routes/user/user");
+const userRouter = require("./routes/user");
 
-const eduRouter = require("./src/routes/edu");
+const eduRouter = require("./routes/edu");
 
 // Use routers
 app.use("/user", userRouter);
-app.use("/admin", eduRouter);
+app.use("/edu", eduRouter);
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

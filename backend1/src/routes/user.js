@@ -1,13 +1,19 @@
 const express = require("express");
-require("dotenv").config();
-const axios = require("axios");
-
+//require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
 const jwt=require("jsonwebtoken")
 const router=express.Router()
 const prisma=new PrismaClient();
 const { authMiddleware } =require('../middleware');
+const { JWT_PASSWORD } = require("../config");
 
+//for frontend using cookies
+// await axios.post(`${BACKEND_URL}/signin`, {
+//     username,
+//     password
+// }, {
+//     withCredentials: true,
+// });
 router.post('/signup', async(req,res)=>{
     console.log("Reaching here")
   const body= req.body;
@@ -21,10 +27,9 @@ router.post('/signup', async(req,res)=>{
           }
       });
       const userId=user.id;
-      const token=jwt.sign(userId,process.env.JWT_PASSWORD);
-      res.status(200).json({message:"User created successfully",
-          token:token
-      })
+      const token=jwt.sign(userId,JWT_PASSWORD);
+      res.cookie("token", token);
+      res.json({message:"signup successful !"})
   }catch(e){
       console.log("Got the error: ",e);
       return res.status(403).json({
@@ -44,11 +49,9 @@ router.post('/signin',async (req,res)=>{
       })
       console.log("Got the user: ",founduser)
       if(founduser){
-          const token=jwt.sign({userId:founduser.id},process.env.JWT_PASSWORD);
-          res.status(200).json({
-              message:"Signed in successfully ",
-              token:token
-          })
+          const token=jwt.sign({userId:founduser.id},JWT_PASSWORD);
+      res.cookie("token", token);
+      res.json({message:"signup successful !"})
       }else{
         res.status(411).json({message:"User not found !"})
       }
@@ -98,5 +101,6 @@ router.post('/profilesetup', authMiddleware ,async (req,res)=>{
         res.status(411).json({error:"Failed to setup the profile"});
       }
 })
+
 
 module.exports = router;

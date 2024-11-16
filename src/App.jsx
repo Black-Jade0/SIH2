@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "./components/Sidebar";
-import { BrowserRouter as Router } from "react-router-dom";
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import HomePage from "./home/HomePage";
 import AssessmentCreation from "./Dashboard/AssessmentCreation"
 import PerformanceReports from "./performanceReports/PerformanceReports";
@@ -8,6 +8,7 @@ import AccessibilityOptions from "./accessibility/AccessibilityOptions";
 import Dashboard from "./Dashboardd/Dashboard";
 import Support from "./support/Support";
 import ResultsAndAnalytics from "./Result/ResultsAndAnalytics";
+import UploadPdf from "./pages/Uploadpage";
 
 const App = () => {
     const [activeSection, setActiveSection] = useState("home");
@@ -41,6 +42,9 @@ const App = () => {
 
     return (
         <Router>
+        <Routes>
+            <Route path="/upload" element={<UploadPdf/>} ></Route>
+        </Routes>
             <div className="flex flex-row w-screen">
                 <Sidebar activeSection={activeSection} />
 
