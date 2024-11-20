@@ -1,6 +1,7 @@
 import axios from 'axios';
 import React, { useState } from 'react';
-
+import {BACKENDBASEURL} from "../config"
+import PdfList from '../components/DownloadViewpdf';
 const UploadPdf = () => {
     const [file, setFile] = useState(null);
 
@@ -20,7 +21,7 @@ const UploadPdf = () => {
         formData.append('pdf', file);
         
         try {
-            const response = await axios.post('http://localhost:3000/edu/upload',formData,{
+            const response = await axios.post(BACKENDBASEURL+'/edu/upload',formData,{
                 withCredentials: true,
             })
             
@@ -31,10 +32,15 @@ const UploadPdf = () => {
     };
 
     return (
+        <>
         <form onSubmit={handleSubmit}>
             <input type="file" accept="application/pdf" onChange={handleFileChange} />
             <button type="submit">Upload</button>
         </form>
+        <br />
+        <PdfList/>
+        </>
+        
     );
 };
 
