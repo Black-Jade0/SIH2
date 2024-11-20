@@ -8,12 +8,30 @@ const { authMiddleware } = require("../middleware");
 const { JWT_PASSWORD } = require("../config");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { GoogleAIFileManager } = require("@google/generative-ai/server");
-
+const fs = require('fs').promises;
+const path = require('path');
 const multer = require("multer");
-
+// Retry configuration
+const RETRY_ATTEMPTS = 3;
+const INITIAL_RETRY_DELAY = 2000; // 2 seconds
+const MAX_RETRY_DELAY = 10000; // 10 seconds
 // Multer setup for file upload
 const storage = multer.memoryStorage(); // Stores the file in memory as a buffer
-const upload = multer({ storage });
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Only PDF files are allowed'));
+        }
+    }
+});
+const tempDir = path.join(__dirname, 'temp');
+fs.mkdir(tempDir, { recursive: true }).catch(console.error);
 
 router.post(
   "/upload",
@@ -78,56 +96,164 @@ router.get("/pdfs", async (req, res) => {
     res.status(500).json({ message: "Error fetching PDFs" });
   }
 });
+// Helper function for delay
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// Exponential backoff function
+const getRetryDelay = (attempt) => {
+    return Math.min(INITIAL_RETRY_DELAY * Math.pow(2, attempt), MAX_RETRY_DELAY);
+};
+async function uploadFileWithRetry(fileManager, filePath, options, attempt = 1) {
+    try {
+        return await fileManager.uploadFile(filePath, options);
+    } catch (error) {
+        if (error.message.includes('model is overloaded') && attempt < RETRY_ATTEMPTS) {
+            const retryDelay = getRetryDelay(attempt);
+            console.log(`Attempt ${attempt} failed. Retrying in ${retryDelay/1000} seconds...`);
+            await delay(retryDelay);
+            return uploadFileWithRetry(fileManager, filePath, options, attempt + 1);
+        }
+        throw error;
+    }
+}
+function parseGeminiResponse(responseText) {
+    try {
+        // Remove markdown code block markers if present
+        const cleanedResponse = responseText
+            .replace(/^```json\s*/, '')  // Remove ```json at the start
+            .replace(/```\s*$/, '')      // Remove ``` at the end
+            .trim();
+
+        // Parse the cleaned JSON
+        const parsedResponse = JSON.parse(cleanedResponse);
+
+        // Validate the structure
+        if (
+            Array.isArray(parsedResponse) && 
+            parsedResponse.every(item => 
+                item.hasOwnProperty('serial') && 
+                item.hasOwnProperty('content')
+            )
+        ) {
+            return parsedResponse;
+        } else {
+            throw new Error('Invalid response format');
+        }
+    } catch (error) {
+        console.error('Parsing Error:', error);
+        console.log('Original Response:', responseText);
+
+        // Fallback parsing strategies
+        try {
+            // Try parsing without code block removal
+            return JSON.parse(responseText);
+        } catch (fallbackError) {
+            // Last resort: return as single item array
+            return [{
+                serial: 1,
+                content: responseText
+            }];
+        }
+    }
+}
 
 router.post(
     "/uploadforeval",
-    authMiddleware,
     upload.single("pdf"),
     async (req, res) => {
+        console.log("Reaching this route!")
+        let tempFilePath = null;
+
       try {
         const { originalname, mimetype, buffer } = req.file;
-        const uploaderId = req.userId;
+        
+        const tempFilePath = path.join(tempDir, `${Date.now()}-${originalname}`);
+        
+        // Write buffer to temporary file
+        await fs.writeFile(tempFilePath, buffer);
+
         // Initialize GoogleGenerativeAI with your API_KEY.
         const genAI = new GoogleGenerativeAI(process.env.API_KEY_GEMINI);
         // Initialize GoogleAIFileManager with your API_KEY.
         const fileManager = new GoogleAIFileManager(process.env.API_KEY_GEMINI);
 
-        const model = genAI.getGenerativeModel({
-        // Choose a Gemini model.
-        model: "gemini-1.5-flash",
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            generationConfig: {
+                maxOutputTokens: 4096,
+                temperature: 0.4,
+                topP: 1,
+                topK: 32
+            }
         });
-        console.log("File to be uploaded to gemini: ",buffer)
+        console.log("api key rec: ",process.env.API_KEY_GEMINI)
+
         // Upload the file and specify a display name.
-        const uploadResponse = await fileManager.uploadFile(buffer, {
-        mimeType: "application/pdf",
-        displayName: "Gemini 1.5 PDF",
+        const uploadResponse = await uploadFileWithRetry(fileManager, tempFilePath, {
+            mimeType: "application/pdf",
+            displayName: originalname,
         });
 
-        // View the response.
-        console.log(
-        `Uploaded file ${uploadResponse.file.displayName} as: ${uploadResponse.file.uri}`,
-        );
-
-        // Generate content using text and the URI reference for the uploaded file.
+         console.log(
+             `Uploaded file ${uploadResponse.file.displayName} as: ${uploadResponse.file.uri}`
+         );
         const result = await model.generateContent([
+            `Analyze the document and extract key information.
+            
+            Provide the output in the following JSON format:
+            [
+                {
+                    "serial": 1,
+                    "content": "Detailed information about the first key point"
+                },
+                ...
+            ]
+            
+            Ensure:
+            - Use clear, concise language
+            - Number the serials sequentially
+            - Wrap the response in JSON code block: \`\`\`json ... \`\`\``,
             {
             fileData: {
                 mimeType: uploadResponse.file.mimeType,
                 fileUri: uploadResponse.file.uri,
             },
             },
-            { text: "Convert the content of pdf into text " },
         ]);
+
+        const responseText = result.response.text();
+         // Parse the response
+         const parsedResponse = parseGeminiResponse(responseText);
+         console.log("parsed result finally: ",parsedResponse)
         
-        // Output the generated text to the console
-        console.log(result.response.text());
-  
-        res.status(201).json({ message: "Result" });
-        console.log({ message: "Result: " });
+        res.json({
+            success: true,
+            fileUri: uploadResponse.file.uri,
+            displayName: uploadResponse.file.displayName
+        });
       } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Error uploading PDF" });
-      }
+        console.error('Error processing PDF:', error);
+        
+        // Provide more specific error messages based on the error type
+        let errorMessage = error.message;
+        if (error.message.includes('model is overloaded')) {
+            errorMessage = 'The service is currently experiencing high traffic. Please try again in a few minutes.';
+        }
+        
+        res.status(error.message.includes('model is overloaded') ? 503 : 500).json({
+            success: false,
+            error: errorMessage
+        });
+      } finally {
+        // Clean up temporary file
+        if (tempFilePath) {
+            try {
+                await fs.unlink(tempFilePath);
+            } catch (error) {
+                console.error('Error cleaning up temporary file:', error);
+            }
+        }
+    }
     }
   );
 
