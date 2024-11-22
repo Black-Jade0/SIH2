@@ -1,3 +1,5 @@
+const fs = require('fs').promises;
+const path = require('path');
 // Utility function to check if file exists
 async function fileExists(filePath) {
     try {

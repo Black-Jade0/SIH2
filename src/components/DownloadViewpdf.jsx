@@ -27,7 +27,7 @@ const PdfList = () => {
             withCredentials: true,
         });
         console.log("response from backend: ",response.data)
-        const blob = response.data;
+        const blob = response.data.data;
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

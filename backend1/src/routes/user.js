@@ -11,7 +11,7 @@ const { GoogleAIFileManager } = require("@google/generative-ai/server");
 const fs = require('fs').promises;
 const path = require('path');
 const multer = require("multer");
-const { cleanupTempFile, cleanupTempDirectory } = require('../utilityfunction/clenupfunction');
+const { cleanupTempFile, cleanupTempDirectory, fileExists } = require('../utilityfunction/clenupfunction');
 const { parseGeminiResponse, processMultipleDocuments } = require('../utilityfunction/aidinupload');
 // Retry configuration
 const RETRY_ATTEMPTS = 3;
@@ -155,12 +155,13 @@ router.post(
 
       try {
         const { originalname, mimetype, buffer } = req.file;
-        const body = req.body;
+        const body = JSON.parse(req.body.infoFile);
+        console.log(" meta data of file ",body)
         const tempFilePath = path.join(tempDir, `${Date.now()}-${originalname}`);
         
         // Write buffer to temporary file
         await fs.writeFile(tempFilePath, buffer);
-        const questionFile = await prisma.questionPdf.findUnique({
+        const questionFile = await prisma.questionPdf.findFirst({
           where:{
             subject: body.subject,
             level: body.level
@@ -173,8 +174,6 @@ router.post(
          await cleanupTempDirectory(questionDir);
         // Initialize GoogleGenerativeAI with your API_KEY.
         const genAI = new GoogleGenerativeAI(process.env.API_KEY_GEMINI);
-        // Initialize GoogleAIFileManager with your API_KEY.
-        const fileManager = new GoogleAIFileManager(process.env.API_KEY_GEMINI);
 
         const model = genAI.getGenerativeModel({ 
             model: "gemini-1.5-flash",
@@ -187,23 +186,16 @@ router.post(
         });
 
         // Upload the file and specify a display name.
-        const uploadResponse = await uploadFileWithRetry(fileManager,tempFilePath, {
-            mimeType: "application/pdf",
-            displayName: file.originalname
-        });
+        
         tempFiles.push(tempFilePath);
-        fileUris.push(uploadResponse.file.uri);
+        fileUris.push(tempFilePath);
 
-        const uploadQuestions = await fileManager.uploadFileWithRetry(fileManager,questionFilePath,{
-            mimeType: "application/pdf",
-            displayName: questionFile.name
-        });
         tempFiles.push(questionFilePath);
-        fileUris.push(uploadQuestions.file.uri);
+        fileUris.push(questionFilePath);
 
         const result = await processMultipleDocuments(fileUris);
 
-        const responseText = result.response.text();
+        const responseText = result;
          console.log("result from gemini: ",responseText)
         
        res.json({

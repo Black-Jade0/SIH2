@@ -32,7 +32,8 @@ router.post(
     try {
       const { originalname, mimetype, buffer } = req.file;
       const uploaderId = req.userId;
-      const body = req.body;
+      console.log("rec. file ",req.body)
+      const body = JSON.parse(req.body.infoFile);
       // Store the PDF in MongoDB as a Blob
       const pdf = await prisma.questionPdf.create({
         data: {
