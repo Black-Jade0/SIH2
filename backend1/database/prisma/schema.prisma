@@ -51,11 +51,14 @@ model EducatorDetail{
   educatorId String @db.ObjectId
   eduschema EduSchema @relation(fields: [educatorId], references: [id])
 }
-model Pdf {
+model QuestionPdf {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   name        String   // Original file name
   data        Bytes    // Blob for storing file content
   contentType String   // MIME type of the file (e.g., application/pdf)
   uploaderId  String   // ID of the uploader
+  subject     String
+  level       String
   createdAt   DateTime @default(now())
 }
+
